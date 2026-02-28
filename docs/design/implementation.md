@@ -35,7 +35,7 @@ src/
 ### VS Codeワークスペース運用
 
 - `template.code-workspace` は `root` / `docs` の2ルート構成とする
-- `.vscode/settings.json` の `files.exclude.docs = true` は appルート内での重複表示を避けるために維持し、編集は workspace の各ルートから行う
+- `.vscode/settings.json` の `files.exclude = true` は appルート内での重複表示を避けるために維持し、編集は workspace の各ルートから行う
 
 ### コーディング規約（機能固有）
 
