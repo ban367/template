@@ -2,7 +2,19 @@
   "permissions": {
     "allow": [
       "Bash(bash:*)",
-      "Bash(gh:*)"
+      "Bash(cat:.claude/*)",
+      "Bash(cat:.github/*)",
+      "Bash(gh:*)",
+      "Bash(git diff:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git status:*)"
     ]
+  },
+  "enabledPlugins": {
+    "example-skills@anthropic-agent-skills": true,
+    "document-skills@anthropic-agent-skills": true,
+    "skill-creator@claude-plugins-official": true
   }
 }
