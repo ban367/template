@@ -2,11 +2,13 @@
 set -euo pipefail
 # 一般コメント取得
 PR_ARG="${1:-}"
+set +e
 if [ -n "$PR_ARG" ]; then
   PR_NUM=$(gh pr view "$PR_ARG" --json number --jq '.number' 2>/dev/null)
 else
   PR_NUM=$(gh pr view --json number --jq '.number' 2>/dev/null)
 fi
+set -e
 if [ -z "$PR_NUM" ]; then
   if [ -n "$PR_ARG" ]; then
     echo "Error: failed to resolve pull request from argument '${PR_ARG}'." >&2
