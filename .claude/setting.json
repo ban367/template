@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(.claude/scripts/*.sh*)"
+      "Bash(.claude/skills/fix-pull-request/scripts/*.sh*)",
+      "Bash(gh:*)"
     ]
   }
 }
