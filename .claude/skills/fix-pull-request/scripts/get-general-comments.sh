@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # 一般コメント取得
 PR_ARG="${1:-}"
 if [ -n "$PR_ARG" ]; then

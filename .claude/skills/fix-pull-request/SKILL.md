@@ -7,7 +7,7 @@ argument-hint: [pr-number]
 ## コンテキスト
 
 PR概要:
-!`gh pr view --json number,title,url,headRefName,baseRefName,state`
+!`gh pr view ${ARGUMENTS:-} --json number,title,url,headRefName,baseRefName,state`
 
 インラインレビューコメント:
 !`bash .claude/skills/fix-pull-request/scripts/get-inline-comments.sh ${ARGUMENTS:-}`
@@ -116,8 +116,12 @@ EOF
 threadIdはコンテキストで取得済みの `id`（`PRRT_...` 形式）を使用する:
 
 ```bash
-gh api graphql -f query='mutation($threadId:ID!){resolveReviewThread(input:{threadId:$threadId}){thread{id,isResolved}}}' \
-  -F threadId="<PRRT_...>"
+JFILE=$(mktemp)
+cat > "$JFILE" << 'ENDJSON'
+{"query": "mutation($threadId:ID!){resolveReviewThread(input:{threadId:$threadId}){thread{id,isResolved}}}"}
+ENDJSON
+jq --arg tid "<PRRT_...>" '. + {variables: {threadId: $tid}}' "$JFILE" | gh api graphql --input -
+rm -f "$JFILE"
 ```
 
 対応不要と判断したスレッドも理由を返信したうえでresolveする。

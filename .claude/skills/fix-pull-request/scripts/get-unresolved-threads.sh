@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # 未resolvedスレッド取得（GraphQL、ページング対応）
 PR_ARG="${1:-}"
 if [ -n "$PR_ARG" ]; then
