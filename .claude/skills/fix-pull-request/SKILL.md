@@ -1,7 +1,6 @@
 ---
 name: fix-pr
 description: PRのレビューコメントを確認し、対応プランを構築・実装・返信・コミット・resolveする
-argument-hint: [pr-number]
 ---
 
 ## コンテキスト
@@ -10,16 +9,16 @@ PR概要:
 !`gh pr view --json number,title,url,headRefName,baseRefName,state`
 
 インラインレビューコメント:
-!`bash .claude/skills/fix-pull-request/scripts/get-inline-comments.sh ${ARGUMENTS:-}`
+!`bash .claude/skills/fix-pull-request/scripts/get-inline-comments.sh`
 
 一般コメント:
-!`bash .claude/skills/fix-pull-request/scripts/get-general-comments.sh ${ARGUMENTS:-}`
+!`bash .claude/skills/fix-pull-request/scripts/get-general-comments.sh`
 
 レビューサマリー:
 !`gh pr view --json reviews`
 
 未resolvedスレッド一覧 (threadId含む):
-!`bash .claude/skills/fix-pull-request/scripts/get-unresolved-threads.sh ${ARGUMENTS:-}`
+!`bash .claude/skills/fix-pull-request/scripts/get-unresolved-threads.sh`
 
 ## 手順
 
