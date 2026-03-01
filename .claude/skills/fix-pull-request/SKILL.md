@@ -7,7 +7,7 @@ argument-hint: [pr-number]
 ## コンテキスト
 
 PR概要:
-!`gh pr view ${ARGUMENTS:-} --json number,title,url,headRefName,baseRefName,state`
+!`gh pr view --json number,title,url,headRefName,baseRefName,state`
 
 インラインレビューコメント:
 !`bash .claude/skills/fix-pull-request/scripts/get-inline-comments.sh ${ARGUMENTS:-}`
@@ -16,7 +16,7 @@ PR概要:
 !`bash .claude/skills/fix-pull-request/scripts/get-general-comments.sh ${ARGUMENTS:-}`
 
 レビューサマリー:
-!`gh pr view ${ARGUMENTS:-} --json reviews`
+!`gh pr view --json reviews`
 
 未resolvedスレッド一覧 (threadId含む):
 !`bash .claude/skills/fix-pull-request/scripts/get-unresolved-threads.sh ${ARGUMENTS:-}`
