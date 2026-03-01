@@ -1,5 +1,5 @@
 {
   "files.exclude": {
-    "docs": true
+    "docs": true // Exclude duplicates when opened in workspace
   }
 }
