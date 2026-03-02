@@ -11,9 +11,9 @@ fi
 set -e
 if [ -z "$PR_NUM" ]; then
   if [ -n "$PR_ARG" ]; then
-    echo "Error: failed to resolve pull request from argument '${PR_ARG}'." >&2
+    echo "エラー: 引数 '${PR_ARG}' からプルリクエストを解決できませんでした。" >&2
   else
-    echo "Error: failed to resolve current pull request. Are you on a pull request branch?" >&2
+    echo "エラー: 現在のプルリクエストを解決できませんでした。PRブランチ上にいますか？" >&2
   fi
   exit 1
 fi

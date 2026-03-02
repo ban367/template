@@ -30,10 +30,10 @@ UNTRACKED_FILES=$(git ls-files --others --exclude-standard 2>/dev/null || true)
 FILE_COUNT=$(printf '%s\n' "$COMMITTED_FILES" "$UNSTAGED_FILES" "$STAGED_FILES" "$UNTRACKED_FILES" | grep -v '^$' | sort -u | wc -l | tr -d ' ')
 
 # カテゴリ別のカウント（表示用）
-COMMITTED_COUNT=$(echo "$COMMITTED_FILES" | grep -c -v '^$' || echo "0")
-UNSTAGED_COUNT=$(echo "$UNSTAGED_FILES" | grep -c -v '^$' || echo "0")
-STAGED_COUNT=$(echo "$STAGED_FILES" | grep -c -v '^$' || echo "0")
-UNTRACKED_COUNT=$(echo "$UNTRACKED_FILES" | grep -c -v '^$' || echo "0")
+COMMITTED_COUNT=$(printf '%s\n' "$COMMITTED_FILES" | grep -c -v '^$' || true)
+UNSTAGED_COUNT=$(printf '%s\n' "$UNSTAGED_FILES" | grep -c -v '^$' || true)
+STAGED_COUNT=$(printf '%s\n' "$STAGED_FILES" | grep -c -v '^$' || true)
+UNTRACKED_COUNT=$(printf '%s\n' "$UNTRACKED_FILES" | grep -c -v '^$' || true)
 
 # 行数サマリー（コミット済み差分）
 STAT=$(git diff "$BASE_BRANCH"...HEAD --shortstat 2>/dev/null || echo "")
