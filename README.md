@@ -1,5 +1,15 @@
 # template
 
+## Init
+
+### Claude Code 設定
+
+Anthropic 公式のスキルを利用するため、Claude Code にて以下を実行しておく。
+
+```sh
+/plugin marketplace add anthropics/skills
+```
+
 ## リリースフロー
 
 バージョンタグは GitHub Actions で自動生成されます。

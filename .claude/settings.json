@@ -4,5 +4,10 @@
       "Bash(bash:*)",
       "Bash(gh:*)"
     ]
+  },
+  "enabledPlugins": {
+    "example-skills@anthropic-agent-skills": true,
+    "document-skills@anthropic-agent-skills": true,
+    "skill-creator@claude-plugins-official": true
   }
 }
