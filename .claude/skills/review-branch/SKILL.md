@@ -1,6 +1,6 @@
 ---
 name: review-branch
-description: 現在のブランチにおける開発内容をmainからの差分をもとにコードレビューする
+description: 現在のブランチにおける開発内容を分岐元ブランチからの差分をもとにコードレビューする
 ---
 
 ## コンテキスト
@@ -8,37 +8,45 @@ description: 現在のブランチにおける開発内容をmainからの差分
 現在のブランチ:
 !`git rev-parse --abbrev-ref HEAD`
 
-diffサマリー（コミット済み差分）:
-!`git diff main --stat`
+分岐元ブランチの自動検出結果:
+!`bash .claude/skills/review-branch/scripts/detect-base-branch.sh`
 
 作業ツリーの変更状況（未コミット・未追跡を含む）:
 !`git status --short`
-
-変更規模の判定:
-!`bash .claude/skills/review-branch/scripts/get-diff-summary.sh`
-
-変更ファイル一覧（コミット済み）:
-!`git diff main --name-only`
 
 コーディング規約:
 !`cat .github/instructions/general.instructions.md 2>/dev/null || echo "(コーディング規約ファイルなし。一般的なベストプラクティスを適用する)"`
 
 ## 手順
 
+### ステップ0: ベースブランチの確認
+
+レビューを開始する前に、差分の起点となるブランチをユーザーに確認する。
+
+コンテキストの「分岐元ブランチの自動検出結果」に表示されたブランチ名を提示し、ユーザーに確認する。
+AskUserQuestion ツールを使い、検出されたブランチを第一選択肢として提示すること。
+
+確認が取れたら、そのブランチ名を `<base-branch>` としてステップ1以降のすべての git コマンドで使用する。
+
+**確認後に追加取得する情報:**
+- `bash .claude/skills/review-branch/scripts/get-diff-summary.sh <base-branch>` で変更規模を取得
+- `git diff <base-branch> --stat` で差分サマリーを取得
+- `git diff <base-branch> --name-only` で変更ファイル一覧を取得
+
 ### ステップ1: 変更規模の把握
 
 `get-diff-summary.sh` の出力と `git status --short` を確認し、レビュー対象を特定する。
 
 **差分の種類：**
-- コミット済み差分（mainとの committed diff）
+- コミット済み差分（`<base-branch>` との committed diff）
 - 未コミット変更（staged / unstaged）
 - 未追跡ファイル（untracked）
 
 これらをすべてレビュー対象とする。コミット済み差分がゼロでも未コミット変更・未追跡ファイルがあれば通常通りレビューを実施する。
 
 **レビューモードの決定：**
-- **通常モード**（変更ファイルが20以下）: `git diff main` と `git status` を組み合わせて全差分を把握してレビュー
-- **ファイル別モード**（変更ファイルが20超）: `git diff main -- <file>` でファイルごとに逐次取得してレビュー
+- **通常モード**（変更ファイルが20以下）: `git diff <base-branch>` と `git status` を組み合わせて全差分を把握してレビュー
+- **ファイル別モード**（変更ファイルが20超）: `git diff <base-branch> -- <file>` でファイルごとに逐次取得してレビュー
 
 ### ステップ2: コードレビューの実施
 
@@ -69,7 +77,8 @@ diffサマリー（コミット済み差分）:
 ```
 ## ブランチレビュー結果
 **レビュー対象ブランチ:** `<branch>`
-**mainからの差分:** `N ファイル / +X -Y`
+**ベースブランチ:** `<base-branch>`
+**差分:** `N ファイル / +X -Y`
 
 ### サマリー（重要度別件数）
 
