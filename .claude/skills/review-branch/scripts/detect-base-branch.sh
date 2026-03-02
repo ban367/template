@@ -28,6 +28,7 @@ fi
 # ローカルブランチの中から、現在のブランチとの merge-base が最も近いものを探す
 BEST_BRANCH=""
 BEST_DISTANCE=999999
+CURRENT_HEAD=$(git rev-parse HEAD)
 
 for BRANCH in $(git for-each-ref --format='%(refname:short)' refs/heads/ 2>/dev/null); do
   # 自分自身はスキップ
@@ -35,6 +36,9 @@ for BRANCH in $(git for-each-ref --format='%(refname:short)' refs/heads/ 2>/dev/
 
   MERGE_BASE=$(git merge-base "$CURRENT_BRANCH" "$BRANCH" 2>/dev/null || echo "")
   [ -z "$MERGE_BASE" ] && continue
+
+  # 子孫ブランチをスキップ（merge-base が現在の HEAD と一致 = 候補は現在ブランチから派生した子）
+  [ "$MERGE_BASE" = "$CURRENT_HEAD" ] && continue
 
   # merge-base から現在のブランチの HEAD までのコミット数（少ないほど分岐が近い）
   DISTANCE=$(git rev-list --count "$MERGE_BASE".."$CURRENT_BRANCH" 2>/dev/null || echo "999999")
