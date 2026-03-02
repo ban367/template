@@ -9,6 +9,7 @@
       "Bash(git rev-parse:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
+      "Bash(git log:*)",
       "Bash(git status:*)"
     ]
   },
