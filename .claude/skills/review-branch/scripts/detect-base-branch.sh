@@ -25,11 +25,7 @@ if [ "$CURRENT_BRANCH" = "$DEFAULT_BRANCH" ]; then
   exit 0
 fi
 
-# 方法1: git merge-base を使って分岐点を特定し、その分岐点を含むブランチを探す
-# まずリモートトラッキングブランチの設定を確認
-UPSTREAM=$(git rev-parse --abbrev-ref "$CURRENT_BRANCH@{upstream}" 2>/dev/null || echo "")
-
-# 方法2: ローカルブランチの中から、現在のブランチとの merge-base が最も近いものを探す
+# ローカルブランチの中から、現在のブランチとの merge-base が最も近いものを探す
 BEST_BRANCH=""
 BEST_DISTANCE=999999
 
@@ -41,7 +37,7 @@ for BRANCH in $(git for-each-ref --format='%(refname:short)' refs/heads/ 2>/dev/
   [ -z "$MERGE_BASE" ] && continue
 
   # merge-base から現在のブランチの HEAD までのコミット数（少ないほど分岐が近い）
-  DISTANCE=$(git rev-list --count "$MERGE_BASE".."$BRANCH" 2>/dev/null || echo "999999")
+  DISTANCE=$(git rev-list --count "$MERGE_BASE".."$CURRENT_BRANCH" 2>/dev/null || echo "999999")
 
   # 同距離ならデフォルトブランチを優先
   if [ "$DISTANCE" -lt "$BEST_DISTANCE" ] || { [ "$DISTANCE" -eq "$BEST_DISTANCE" ] && [ "$BRANCH" = "$DEFAULT_BRANCH" ]; }; then
