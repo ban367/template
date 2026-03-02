@@ -2,15 +2,7 @@
   "permissions": {
     "allow": [
       "Bash(bash:*)",
-      "Bash(cat:.claude/*)",
-      "Bash(cat:.github/*)",
-      "Bash(gh:*)",
-      "Bash(git diff:*)",
-      "Bash(git rev-parse:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git log:*)",
-      "Bash(git status:*)"
+      "Bash(gh:*)"
     ]
   },
   "enabledPlugins": {

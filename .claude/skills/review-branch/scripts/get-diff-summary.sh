@@ -3,26 +3,40 @@ set -euo pipefail
 
 BASE_BRANCH="${1:-main}"
 
-# ブランチ名のバリデーション（コマンドインジェクション対策）
-if [[ ! "$BASE_BRANCH" =~ ^[a-zA-Z0-9._/-]+$ ]]; then
+# ブランチ名のバリデーション（オプションインジェクション / コマンドインジェクション対策）
+# 1. シェルオプションとして解釈されうる値（先頭が -）を拒否する
+if [[ "$BASE_BRANCH" == -* ]]; then
+  echo "エラー: 無効なブランチ名です（先頭の - は使用できません）: $BASE_BRANCH" >&2
+  exit 1
+fi
+
+# 2. git の正式なブランチ名形式かを検証する
+if ! git check-ref-format --branch "$BASE_BRANCH" >/dev/null 2>&1; then
   echo "エラー: 無効なブランチ名です: $BASE_BRANCH" >&2
   exit 1
 fi
 
-# コミット済み差分ファイル数
-COMMITTED_COUNT=$(git diff "$BASE_BRANCH" --name-only 2>/dev/null | wc -l | tr -d ' ')
+# 各カテゴリのファイル一覧を取得し、ユニークなファイル数を算出する
+# コミット済み差分: merge-base から HEAD までの差分（作業ツリーの変更を含まない）
+COMMITTED_FILES=$(git diff "$BASE_BRANCH"...HEAD --name-only 2>/dev/null || true)
+# 未コミット変更（unstaged）
+UNSTAGED_FILES=$(git diff --name-only 2>/dev/null || true)
+# 未コミット変更（staged）
+STAGED_FILES=$(git diff --cached --name-only 2>/dev/null || true)
+# 未追跡ファイル
+UNTRACKED_FILES=$(git ls-files --others --exclude-standard 2>/dev/null || true)
 
-# 未追跡ファイル数（新規作成ファイル）
-UNTRACKED_COUNT=$(git ls-files --others --exclude-standard 2>/dev/null | wc -l | tr -d ' ')
+# 全ファイルをユニーク化してカウント
+FILE_COUNT=$(printf '%s\n' "$COMMITTED_FILES" "$UNSTAGED_FILES" "$STAGED_FILES" "$UNTRACKED_FILES" | grep -v '^$' | sort -u | wc -l | tr -d ' ')
 
-# 未コミット変更ファイル数（staged + unstaged）
-MODIFIED_COUNT=$(git diff --name-only 2>/dev/null | wc -l | tr -d ' ')
-STAGED_COUNT=$(git diff --cached --name-only 2>/dev/null | wc -l | tr -d ' ')
+# カテゴリ別のカウント（表示用）
+COMMITTED_COUNT=$(echo "$COMMITTED_FILES" | grep -c -v '^$' || echo "0")
+UNSTAGED_COUNT=$(echo "$UNSTAGED_FILES" | grep -c -v '^$' || echo "0")
+STAGED_COUNT=$(echo "$STAGED_FILES" | grep -c -v '^$' || echo "0")
+UNTRACKED_COUNT=$(echo "$UNTRACKED_FILES" | grep -c -v '^$' || echo "0")
 
-FILE_COUNT=$((COMMITTED_COUNT + UNTRACKED_COUNT + MODIFIED_COUNT + STAGED_COUNT))
-
-# 行数サマリー（コミット済み差分が主体）
-STAT=$(git diff "$BASE_BRANCH" --shortstat 2>/dev/null || echo "")
+# 行数サマリー（コミット済み差分）
+STAT=$(git diff "$BASE_BRANCH"...HEAD --shortstat 2>/dev/null || echo "")
 if [ -n "$STAT" ]; then
   ADDED=$(echo "$STAT" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo "0")
   DELETED=$(echo "$STAT" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo "0")
@@ -31,9 +45,9 @@ else
   DELETED="0"
 fi
 
-echo "変更ファイル数: ${FILE_COUNT}"
+echo "変更ファイル数: ${FILE_COUNT}（ユニーク）"
 echo "  コミット済み差分: ${COMMITTED_COUNT}"
-echo "  未コミット変更: $((MODIFIED_COUNT + STAGED_COUNT))"
+echo "  未コミット変更: $((UNSTAGED_COUNT + STAGED_COUNT))"
 echo "  未追跡ファイル: ${UNTRACKED_COUNT}"
 echo "追加行数: +${ADDED}"
 echo "削除行数: -${DELETED}"
