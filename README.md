@@ -4,7 +4,7 @@
 
 ### Claude Code 設定
 
-Anthropics 公式のスキルを利用するため、Claude Code にて以下を実行しておく。
+Anthropic 公式のスキルを利用するため、Claude Code にて以下を実行しておく。
 
 ```sh
 /plugin marketplace add anthropics/skills
