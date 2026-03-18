@@ -3,7 +3,6 @@
     "allow": [
       "Bash(gh:*)",
       "Bash(git:*)",
-      "Bash(bash .claude/skills/*/scripts/*.sh:*)",
       "Bash(bash .claude/skills/*/scripts/*.sh)"
     ]
   },

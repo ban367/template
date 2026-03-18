@@ -3,19 +3,16 @@ name: review-branch
 description: 現在のブランチにおける開発内容を分岐元ブランチからの差分をもとにコードレビューする
 ---
 
-## コンテキスト
+## コンテキスト取得
 
-現在のブランチ:
-!`git rev-parse --abbrev-ref HEAD`
+まず以下のコマンドをBashツールで実行し、コンテキストを収集する（順序依存あり）:
 
-分岐元ブランチの自動検出結果:
-!`bash .claude/skills/review-branch/scripts/detect-base-branch.sh`
+1. **現在のブランチ**: `git rev-parse --abbrev-ref HEAD`
+2. **分岐元ブランチの自動検出**: `bash .claude/skills/review-branch/scripts/detect-base-branch.sh`
+3. **変更規模サマリー**: `bash .claude/skills/review-branch/scripts/get-diff-summary.sh`
+4. **作業ツリーの変更状況**: `git status --short`
 
-変更規模サマリー（ファイル数・行数・レビューモード判定）:
-!`bash .claude/skills/review-branch/scripts/get-diff-summary.sh $(bash .claude/skills/review-branch/scripts/detect-base-branch.sh 2>/dev/null | grep '推定ベースブランチ:' | sed 's/推定ベースブランチ: //')`
-
-作業ツリーの変更状況（未コミット・未追跡を含む）:
-!`git status --short`
+すべて並列実行可能（手順3はスクリプト内でベースブランチを自動検出する）。
 
 ## 手順
 
