@@ -6,7 +6,7 @@ if [ -n "${1:-}" ]; then
   BASE_BRANCH="$1"
 else
   SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-  BASE_BRANCH=$("$SCRIPT_DIR/detect-base-branch.sh" 2>/dev/null | grep '推定ベースブランチ:' | sed 's/推定ベースブランチ: //' || echo "main")
+  BASE_BRANCH=$(bash "$SCRIPT_DIR/detect-base-branch.sh" --raw 2>/dev/null || echo "main")
 fi
 
 # ブランチ名のバリデーション（オプションインジェクション / コマンドインジェクション対策）
