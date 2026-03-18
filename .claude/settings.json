@@ -1,8 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(bash:*)",
-      "Bash(gh:*)"
+      "Bash(gh:*)",
+      "Bash(git:*)",
+      "Bash(bash .claude/skills/*/scripts/*.sh)"
     ]
   },
   "enabledPlugins": {

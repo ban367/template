@@ -3,22 +3,15 @@ name: fix-pr
 description: PRのレビューコメントを確認し、対応プランを構築・実装・返信・コミット・resolveする
 ---
 
-## コンテキスト
+## コンテキスト取得
 
-PR概要:
-!`gh pr view --json number,title,url,headRefName,baseRefName,state`
+まず以下のコマンドをBashツールで実行し、コンテキストを収集する（並列実行可能なものは並列で実行する）:
 
-インラインレビューコメント:
-!`bash .claude/skills/fix-pull-request/scripts/get-inline-comments.sh`
-
-一般コメント:
-!`bash .claude/skills/fix-pull-request/scripts/get-general-comments.sh`
-
-レビューサマリー:
-!`gh pr view --json reviews`
-
-未resolvedスレッド一覧 (threadId含む):
-!`bash .claude/skills/fix-pull-request/scripts/get-unresolved-threads.sh`
+1. **PR概要**: `gh pr view --json number,title,url,headRefName,baseRefName,state`
+2. **インラインレビューコメント**: `bash .claude/skills/fix-pull-request/scripts/get-inline-comments.sh`
+3. **一般コメント**: `bash .claude/skills/fix-pull-request/scripts/get-general-comments.sh`
+4. **レビューサマリー**: `gh pr view --json reviews`
+5. **未resolvedスレッド一覧** (threadId含む): `bash .claude/skills/fix-pull-request/scripts/get-unresolved-threads.sh`
 
 ## 前提チェック
 

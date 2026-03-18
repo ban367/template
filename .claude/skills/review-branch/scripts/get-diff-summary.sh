@@ -1,7 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-BASE_BRANCH="${1:-main}"
+# 引数があればそれを使用、なければ detect-base-branch.sh で自動検出
+if [ -n "${1:-}" ]; then
+  BASE_BRANCH="$1"
+else
+  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+  BASE_BRANCH=$(bash "$SCRIPT_DIR/detect-base-branch.sh" --raw 2>/dev/null || echo "main")
+fi
 
 # ブランチ名のバリデーション（オプションインジェクション / コマンドインジェクション対策）
 # 1. シェルオプションとして解釈されうる値（先頭が -）を拒否する
@@ -27,13 +33,13 @@ STAGED_FILES=$(git diff --cached --name-only 2>/dev/null || true)
 UNTRACKED_FILES=$(git ls-files --others --exclude-standard 2>/dev/null || true)
 
 # 全ファイルをユニーク化してカウント
-FILE_COUNT=$(printf '%s\n' "$COMMITTED_FILES" "$UNSTAGED_FILES" "$STAGED_FILES" "$UNTRACKED_FILES" | grep -v '^$' | sort -u | wc -l | tr -d ' ')
+FILE_COUNT=$(printf '%s\n' "$COMMITTED_FILES" "$UNSTAGED_FILES" "$STAGED_FILES" "$UNTRACKED_FILES" | { grep -v '^$' || true; } | sort -u | wc -l | tr -d ' ')
 
 # カテゴリ別のカウント（表示用）
-COMMITTED_COUNT=$(printf '%s\n' "$COMMITTED_FILES" | grep -c -v '^$' || true)
-UNSTAGED_COUNT=$(printf '%s\n' "$UNSTAGED_FILES" | grep -c -v '^$' || true)
-STAGED_COUNT=$(printf '%s\n' "$STAGED_FILES" | grep -c -v '^$' || true)
-UNTRACKED_COUNT=$(printf '%s\n' "$UNTRACKED_FILES" | grep -c -v '^$' || true)
+COMMITTED_COUNT=$(printf '%s\n' "$COMMITTED_FILES" | { grep -c -v '^$' || true; })
+UNSTAGED_COUNT=$(printf '%s\n' "$UNSTAGED_FILES" | { grep -c -v '^$' || true; })
+STAGED_COUNT=$(printf '%s\n' "$STAGED_FILES" | { grep -c -v '^$' || true; })
+UNTRACKED_COUNT=$(printf '%s\n' "$UNTRACKED_FILES" | { grep -c -v '^$' || true; })
 
 # 行数サマリー（コミット済み差分）
 STAT=$(git diff "$BASE_BRANCH"...HEAD --shortstat 2>/dev/null || echo "")
