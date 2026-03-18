@@ -2,11 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(gh:*)",
-      "Bash(git status:*)",
-      "Bash(git diff:*)",
-      "Bash(git log:*)",
-      "Bash(git rev-parse:*)",
-      "Bash(bash .claude/skills/*/scripts/*.sh:*)"
+      "Bash(git:*)",
+      "Bash(bash .claude/skills/*/scripts/*.sh:*)",
+      "Bash(bash .claude/skills/*/scripts/*.sh)"
     ]
   },
   "enabledPlugins": {
