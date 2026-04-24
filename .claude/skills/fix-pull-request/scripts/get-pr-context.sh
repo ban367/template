@@ -1,10 +1,10 @@
 #!/bin/bash
 set -euo pipefail
-# PR対応に必要なコンテキストを1クエリで取得する
+# PR対応に必要なコンテキストを1スクリプトで取得する
 # - PR概要（number, title, url, head/baseRefName, state）
-# - reviews（state, author, body）直近50件
-# - 未resolvedのreviewThreads（threadId + 全コメントのid/body/author/path/line）
-# - general issueComments（databaseId, author, body）直近50件
+# - reviews: 直近50件（approval状態の判定が目的。古い投票は後続レビューで上書きされるため打ち切る）
+# - generalComments: 全件（ページング）
+# - 未resolvedのreviewThreads: 全件（スレッド・スレッド内コメントともにページング）
 #
 # 使い方:
 #   bash get-pr-context.sh           # 現在のブランチのPR
@@ -26,34 +26,71 @@ REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
 OWNER="${REPO%%/*}"
 REPONAME="${REPO##*/}"
 
-QUERY='query($owner:String!,$repo:String!,$pr:Int!,$after:String){repository(owner:$owner,name:$repo){pullRequest(number:$pr){number,title,url,state,headRefName,baseRefName,reviews(last:50){nodes{state,author{login},body,submittedAt}},comments(last:50){nodes{databaseId,author{login},body,createdAt}},reviewThreads(first:100,after:$after){pageInfo{hasNextPage,endCursor}nodes{id,isResolved,isOutdated,path,line,comments(first:50){nodes{databaseId,body,author{login},path,line,createdAt}}}}}}}'
+QUERY='query($owner:String!,$repo:String!,$pr:Int!,$threadAfter:String,$commentAfter:String){repository(owner:$owner,name:$repo){pullRequest(number:$pr){number,title,url,state,headRefName,baseRefName,reviews(last:50){nodes{state,author{login},body,submittedAt}},comments(first:100,after:$commentAfter){pageInfo{hasNextPage,endCursor}nodes{databaseId,author{login},body,createdAt}},reviewThreads(first:100,after:$threadAfter){pageInfo{hasNextPage,endCursor}nodes{id,isResolved,isOutdated,path,line,comments(first:100){pageInfo{hasNextPage,endCursor}nodes{databaseId,body,author{login},path,line,createdAt}}}}}}}'
 
-AFTER="null"
-HAS_NEXT="true"
-THREADS='[]'
+THREAD_COMMENTS_QUERY='query($threadId:ID!,$after:String){node(id:$threadId){... on PullRequestReviewThread{comments(first:100,after:$after){pageInfo{hasNextPage,endCursor}nodes{databaseId,body,author{login},path,line,createdAt}}}}}'
+
 META='null'
 REVIEWS='[]'
 GENERAL='[]'
+THREADS='[]'
+THREAD_AFTER="null"
+COMMENT_AFTER="null"
+THREADS_HAS_NEXT="true"
+COMMENTS_HAS_NEXT="true"
+FIRST="true"
 
-while [ "$HAS_NEXT" = "true" ]; do
+# メインクエリ: reviewThreadsとgeneralComments(=.comments)を並行してページング
+while [ "$THREADS_HAS_NEXT" = "true" ] || [ "$COMMENTS_HAS_NEXT" = "true" ]; do
   RESPONSE=$(gh api graphql \
     -f query="$QUERY" \
     -F owner="$OWNER" -F repo="$REPONAME" -F pr="$PR_NUM" \
-    -F after="$AFTER")
-  if [ "$META" = "null" ]; then
+    -F threadAfter="$THREAD_AFTER" -F commentAfter="$COMMENT_AFTER")
+
+  if [ "$FIRST" = "true" ]; then
     META=$(printf '%s\n' "$RESPONSE" | jq '.data.repository.pullRequest | {number,title,url,state,headRefName,baseRefName}')
     REVIEWS=$(printf '%s\n' "$RESPONSE" | jq '.data.repository.pullRequest.reviews.nodes')
-    GENERAL=$(printf '%s\n' "$RESPONSE" | jq '.data.repository.pullRequest.comments.nodes')
+    FIRST="false"
   fi
-  PAGE=$(printf '%s\n' "$RESPONSE" | jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)]')
-  THREADS=$(jq -s '.[0] + .[1]' <(printf '%s\n' "$THREADS") <(printf '%s\n' "$PAGE"))
-  HAS_NEXT=$(printf '%s\n' "$RESPONSE" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage')
-  AFTER=$(printf '%s\n' "$RESPONSE" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor')
+
+  if [ "$COMMENTS_HAS_NEXT" = "true" ]; then
+    PAGE_COMMENTS=$(printf '%s\n' "$RESPONSE" | jq '.data.repository.pullRequest.comments.nodes')
+    GENERAL=$(jq -s '.[0] + .[1]' <(printf '%s\n' "$GENERAL") <(printf '%s\n' "$PAGE_COMMENTS"))
+    COMMENTS_HAS_NEXT=$(printf '%s\n' "$RESPONSE" | jq -r '.data.repository.pullRequest.comments.pageInfo.hasNextPage')
+    COMMENT_AFTER=$(printf '%s\n' "$RESPONSE" | jq -r '.data.repository.pullRequest.comments.pageInfo.endCursor // "null"')
+  fi
+
+  if [ "$THREADS_HAS_NEXT" = "true" ]; then
+    PAGE_THREADS=$(printf '%s\n' "$RESPONSE" | jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)]')
+    THREADS=$(jq -s '.[0] + .[1]' <(printf '%s\n' "$THREADS") <(printf '%s\n' "$PAGE_THREADS"))
+    THREADS_HAS_NEXT=$(printf '%s\n' "$RESPONSE" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage')
+    THREAD_AFTER=$(printf '%s\n' "$RESPONSE" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor // "null"')
+  fi
 done
+
+# 各スレッド内コメントが100件を超える場合のフォローアップ取得
+THREAD_IDS_WITH_MORE=$(printf '%s\n' "$THREADS" | jq -r '.[] | select(.comments.pageInfo.hasNextPage == true) | .id')
+for TID in $THREAD_IDS_WITH_MORE; do
+  T_AFTER=$(printf '%s\n' "$THREADS" | jq -r --arg id "$TID" '.[] | select(.id == $id) | .comments.pageInfo.endCursor')
+  T_HAS_NEXT="true"
+  while [ "$T_HAS_NEXT" = "true" ]; do
+    T_RESPONSE=$(gh api graphql \
+      -f query="$THREAD_COMMENTS_QUERY" \
+      -F threadId="$TID" -F after="$T_AFTER")
+    T_PAGE=$(printf '%s\n' "$T_RESPONSE" | jq '.data.node.comments.nodes')
+    THREADS=$(printf '%s\n' "$THREADS" | jq --arg id "$TID" --argjson extra "$T_PAGE" \
+      'map(if .id == $id then .comments.nodes += $extra else . end)')
+    T_HAS_NEXT=$(printf '%s\n' "$T_RESPONSE" | jq -r '.data.node.comments.pageInfo.hasNextPage')
+    T_AFTER=$(printf '%s\n' "$T_RESPONSE" | jq -r '.data.node.comments.pageInfo.endCursor // "null"')
+  done
+done
+
+# pageInfoを除去し、commentsをフラットな配列に（SKILL.mdの記載と整合）
+THREADS_CLEAN=$(printf '%s\n' "$THREADS" | jq 'map(.comments = .comments.nodes)')
 
 jq -n \
   --argjson meta "$META" \
   --argjson reviews "$REVIEWS" \
   --argjson general "$GENERAL" \
-  --argjson threads "$THREADS" \
+  --argjson threads "$THREADS_CLEAN" \
   '{pr: $meta, reviews: $reviews, generalComments: $general, unresolvedThreads: $threads}'

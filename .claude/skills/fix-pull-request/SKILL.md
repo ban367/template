@@ -15,9 +15,9 @@ bash .claude/skills/fix-pull-request/scripts/get-pr-context.sh
 - `pr`: PR概要（number, title, url, state, headRefName, baseRefName）
 - `reviews`: レビュー一覧（state, author, body）— 優先度判定に使う
 - `generalComments`: 一般コメント
-- `unresolvedThreads[]`: 各要素が `{id (threadId), isOutdated, path, line, comments[{databaseId, body, author, path, line}]}`
+- `unresolvedThreads[]`: 各要素が `{id (threadId), isOutdated, path, line, comments[{databaseId, body, author.login, path, line}]}`
 
-**`unresolvedThreads` が空なら**「対応が必要なレビューコメントはありません。」と報告して終了する。
+**`unresolvedThreads` が空で、かつ `generalComments` にも未対応の質問・指摘が残っていなければ**「対応が必要なレビューコメントはありません。」と報告して終了する。`generalComments` にはボットのレビューサマリや既に回答済みのコメントも含まれるため、内容を見て未対応のものが残っているかを判定すること。
 
 `gh pr diff` は、コメントの指摘箇所を確認する必要がある場合のみ取得する（不要なら省略）。
 
