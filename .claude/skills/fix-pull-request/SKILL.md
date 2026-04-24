@@ -3,170 +3,104 @@ name: fix-pr
 description: PRのレビューコメントを確認し、対応プランを構築・実装・返信・コミット・resolveする
 ---
 
-## コンテキスト取得
+## 1. コンテキスト取得
 
-まず以下のコマンドをBashツールで実行し、コンテキストを収集する（並列実行可能なものは並列で実行する）:
+以下を1回だけ実行する。未resolvedスレッドのみを含むJSONが返る:
 
-1. **PR概要**: `gh pr view --json number,title,url,headRefName,baseRefName,state`
-2. **インラインレビューコメント**: `bash .claude/skills/fix-pull-request/scripts/get-inline-comments.sh`
-3. **一般コメント**: `bash .claude/skills/fix-pull-request/scripts/get-general-comments.sh`
-4. **レビューサマリー**: `gh pr view --json reviews`
-5. **未resolvedスレッド一覧** (threadId含む): `bash .claude/skills/fix-pull-request/scripts/get-unresolved-threads.sh`
-
-## 前提チェック
-
-コンテキスト取得後、まず以下を確認する:
-
-- 未resolvedのスレッドまたは未対応のコメントが存在するか
-- 存在しない場合は「対応が必要なレビューコメントはありません。」と報告して終了する
-
-## 手順
-
-### ステップ1: レビュー分析
-
-上記コンテキストを読み込み、以下を整理する:
-
-- 未resolved（`isResolved: false`）のスレッドを全件リストアップ
-- インラインコメント（ファイル・行情報付き）と一般コメントを区別する
-- 各コメントに含まれる指摘内容・要望・質問を把握する
-- レビューの種類を確認し、優先度を判断する:
-  - **CHANGES_REQUESTED**: マージをブロック中。最優先で対応する
-  - **COMMENTED**: 通常の指摘。内容に応じて対応する
-  - **APPROVED**: 改善提案の可能性が高い。対応推奨だが必須ではない
-- GitHub Suggestion（` ```suggestion ` ブロック）を含むコメントを検知する
-  - Suggestionは「レビュアーが具体的なコード変更を提案している」もの。そのまま適用できるため対応が容易
-- outdated（古いdiffに対する）コメントを区別する
-  - outdatedコメントは、ファイルが変更されてdiffの行番号がずれた場合に発生する。現在のコードで既に解消されている可能性がある
-- 必要であれば `gh pr diff` でdiffを取得して変更箇所を確認する
-
-### ステップ2: 対応プランの構築
-
-コメントごとに対応方針を表形式で提示する:
-
-| # | コメント要約 | 種別 | 対応方針 | 優先度 |
-|---|------------|------|---------|-------|
-| 1 | (コメントの要約) | 修正 / Suggestion適用 / 返答 / 不要 | (具体的な対応内容) | 高 / 中 / 低 |
-
-対応方針の分類:
-- **コード修正が必要なもの** → 修正内容を具体的に示す
-- **GitHub Suggestion** → そのまま適用するか、修正して適用するかを判断する
-- **質問・確認事項** → 返答内容を草案する
-- **対応不要・意図的なもの** → その理由を説明する
-- **outdatedコメント** → 現在のコードで既に解消されていれば、その旨を返信する
-
-**ユーザー確認が必要なケース:**
-
-以下のいずれかに該当する場合は、コード修正を開始する前にユーザーに確認する:
-
-- 設計方針やアーキテクチャに関わる変更を求められている
-- レビュアーの指摘内容が曖昧で、複数の解釈が可能
-- 対応するとスコープが大きく広がる（他ファイルへの波及が3ファイル以上）
-- レビュアーの指摘に同意できない点がある
-
-それ以外（明確なバグ指摘、typo修正、コードスタイルの改善など）はそのまま進めてよい。
-
-### ステップ3: コード修正
-
-AGENTS.mdおよび `.github/instructions/general.instructions.md` の規約に従い実装する:
-
-- 最小限の変更にとどめる（レビューコメントへの対応のみ）
-- 1関数1機能・スコープを狭く保つ
-- セキュリティ・エラーハンドリングの規約を遵守する
-- GitHub Suggestionの適用: suggestionブロックの内容を該当ファイルの該当行に反映する
-
-### ステップ4: コメント返信
-
-各コメントに日本語で返信する。
-
-**インラインコメントへの返信:**
 ```bash
-REPLY_FILE=$(mktemp)
-cat > "$REPLY_FILE" << 'JSONEOF'
-{"body": "<返信内容（日本語）>"}
-JSONEOF
-PR_NUM=$(gh pr view --json number --jq '.number')
-REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
-gh api repos/$REPO/pulls/$PR_NUM/comments/<comment_id>/replies \
-  -X POST --input "$REPLY_FILE"
-rm -f "$REPLY_FILE"
+bash .claude/skills/fix-pull-request/scripts/get-pr-context.sh
 ```
 
-**一般コメントへの返信:**
+返却JSONの構造:
+- `pr`: PR概要（number, title, url, state, headRefName, baseRefName）
+- `reviews`: レビュー一覧（state, author, body）— 優先度判定に使う
+- `generalComments`: 一般コメント
+- `unresolvedThreads[]`: 各要素が `{id (threadId), isOutdated, path, line, comments[{databaseId, body, author.login, path, line}]}`
+
+**`unresolvedThreads` が空で、かつ `generalComments` にも未対応の質問・指摘が残っていなければ**「対応が必要なレビューコメントはありません。」と報告して終了する。`generalComments` にはボットのレビューサマリや既に回答済みのコメントも含まれるため、内容を見て未対応のものが残っているかを判定すること。
+
+`gh pr diff` は、コメントの指摘箇所を確認する必要がある場合のみ取得する（不要なら省略）。
+
+## 2. 対応プランの構築
+
+スレッドごとに対応方針を表形式で提示する:
+
+| # | threadId | 要約 | 対応方針 | 優先度 |
+|---|---------|------|---------|-------|
+| 1 | PRRT_... | ... | 修正 / Suggestion適用 / 返答 / 不要 | 高/中/低 |
+
+分類:
+- **修正** — 具体的な変更内容を示す
+- **Suggestion適用** — ` ```suggestion ` ブロックをそのまま／調整して反映
+- **返答** — 質問・確認への回答
+- **不要** — 意図的な実装やoutdatedで既解消。理由を添えて返信のみ
+
+優先度:
+- `CHANGES_REQUESTED` のレビューに紐づくもの → 最優先
+- outdatedコメントで既に解消されている場合は低優先、返信+resolveのみ
+
+**ユーザー確認を挟むケース**（コード修正前に一度確認する）:
+- 設計・アーキテクチャ判断が必要
+- 指摘が曖昧で複数解釈できる
+- 波及が3ファイル以上に及ぶ
+- レビュアーの指摘に同意できない
+
+明確なバグ・typo・スタイル修正はそのまま進めてよい。
+
+## 3. コード修正
+
+AGENTS.md と `.github/instructions/general.instructions.md` の規約に従い、最小限の変更で対応する。
+
+## 4. コメント返信
+
+各スレッドの**最初のコメントのdatabaseId**に対して返信する（同じthreadに紐づく）。一般コメントはissues APIで返信する。
+
 ```bash
-REPLY_FILE=$(mktemp)
-cat > "$REPLY_FILE" << 'JSONEOF'
-{"body": "<返信内容（日本語）>"}
-JSONEOF
 PR_NUM=$(gh pr view --json number --jq '.number')
 REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
-gh api repos/$REPO/issues/$PR_NUM/comments \
-  -X POST --input "$REPLY_FILE"
-rm -f "$REPLY_FILE"
+
+# インライン返信（<comment_id> は対象スレッドの最初のコメントのdatabaseId）
+gh api "repos/$REPO/pulls/$PR_NUM/comments/<comment_id>/replies" \
+  -X POST -f body="<返信内容（日本語）>"
+
+# 一般コメント返信
+gh api "repos/$REPO/issues/$PR_NUM/comments" \
+  -X POST -f body="<返信内容（日本語）>"
 ```
 
-返信内容の例:
-- 修正対応: 「ご指摘のとおり修正しました。`<修正内容の概要>` に変更しています。」
-- Suggestion適用: 「Suggestionを適用しました。ありがとうございます。」
-- 質問への回答: 「`<質問内容>` についてですが、`<回答>` のため現状の実装としています。」
-- 意図的な実装: 「`<理由>` のため意図的にこの実装としています。問題があればご指摘ください。」
-- outdated対応: 「こちらは最新のコードでは既に解消されています。（該当コミット: `<hash>`）」
+返信は日本語で簡潔に。修正対応なら変更概要、Suggestion適用ならその旨、意図的実装なら理由、outdatedなら既解消の旨を1〜2文で伝える。
 
-### ステップ5: コミット
+## 5. コミット
 
-英語・Conventional Commits形式でコミットする（AGENTS.mdの規約に従う）。
-
-**コミット分割の方針:**
-
-関連性のある変更は1つのコミットにまとめ、性質の異なる変更は分割する:
-
-- バグ修正とリファクタリングが混在 → 別コミット
-- 同じ機能に対する複数の指摘 → 1コミット
-- ドキュメント修正とコード修正 → 別コミット
-
-判断に迷ったら1コミットにまとめてよい（分割しすぎるよりシンプルな方がよい）。
+英語・Conventional Commits形式。関連する変更はまとめ、性質が異なるもの（fix と refactor、code と docs）は分割する。迷ったら1コミットでよい。
 
 ```bash
 git add <変更ファイル>
 git commit -m "$(cat <<'EOF'
 fix: address review comments
 
-- <対応内容1の英語要約>
-- <対応内容2の英語要約>
+- <対応1>
+- <対応2>
 
 Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )"
 ```
 
-使用するプレフィックス例:
-- `fix:` バグ修正・レビュー指摘への修正
-- `refactor:` リファクタリング
-- `docs:` ドキュメント修正
-- `style:` コードスタイル修正
-- `test:` テスト追加・修正
+プレフィックス: `fix:` `refactor:` `docs:` `style:` `test:`
 
-### ステップ6: スレッドresolve
+## 6. スレッドresolve
 
-対応済みスレッドを `resolveReviewThread` GraphQL mutationでresolveする。
-
-threadIdはコンテキストで取得済みの `id`（`PRRT_...` 形式）を使用する:
+対応済み・対応不要いずれも返信後にresolveする:
 
 ```bash
-JFILE=$(mktemp)
-cat > "$JFILE" << 'ENDJSON'
-{"query": "mutation($threadId:ID!){resolveReviewThread(input:{threadId:$threadId}){thread{id,isResolved}}}"}
-ENDJSON
-jq --arg tid "<PRRT_...>" '. + {variables: {threadId: $tid}}' "$JFILE" | gh api graphql --input -
-rm -f "$JFILE"
+gh api graphql -f query='mutation($t:ID!){resolveReviewThread(input:{threadId:$t}){thread{id,isResolved}}}' -F t="<threadId>"
 ```
 
-対応不要と判断したスレッドも理由を返信したうえでresolveする。
+## 完了報告
 
-### 完了報告
-
-すべてのステップが完了したら、以下を日本語でまとめて報告する:
-
-- 対応したレビューコメントの一覧と対応内容
-- コミットハッシュ（複数コミットの場合はすべて）
-- resolveしたスレッド数
-- 対応しなかったコメントがある場合はその理由
+日本語で以下をまとめる:
+- 対応したスレッドの件数と対応内容
+- コミットハッシュ
+- resolveした件数
+- 見送った項目があればその理由
