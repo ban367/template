@@ -6,6 +6,9 @@ set -euo pipefail
 # - generalComments: 全件（ページング）
 # - 未resolvedのreviewThreads: 全件（スレッド・スレッド内コメントともにページング）
 #
+# 各接続は @include ディレクティブで完了済みの取得を抑制するため、
+# ページング完了後は不要なレスポンスを取りに行かない。
+#
 # 使い方:
 #   bash get-pr-context.sh           # 現在のブランチのPR
 #   bash get-pr-context.sh <PR番号>  # 明示指定
@@ -26,7 +29,9 @@ REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
 OWNER="${REPO%%/*}"
 REPONAME="${REPO##*/}"
 
-QUERY='query($owner:String!,$repo:String!,$pr:Int!,$threadAfter:String,$commentAfter:String){repository(owner:$owner,name:$repo){pullRequest(number:$pr){number,title,url,state,headRefName,baseRefName,reviews(last:50){nodes{state,author{login},body,submittedAt}},comments(first:100,after:$commentAfter){pageInfo{hasNextPage,endCursor}nodes{databaseId,author{login},body,createdAt}},reviewThreads(first:100,after:$threadAfter){pageInfo{hasNextPage,endCursor}nodes{id,isResolved,isOutdated,path,line,comments(first:100){pageInfo{hasNextPage,endCursor}nodes{databaseId,body,author{login},path,line,createdAt}}}}}}}'
+# @include(if: ...) で「初回のみ」「commentsページング継続中」「threadsページング継続中」を制御し、
+# 完了した接続はクエリ自体から外してレスポンス量を削減する。
+QUERY='query($owner:String!,$repo:String!,$pr:Int!,$threadAfter:String,$commentAfter:String,$isFirst:Boolean!,$wantComments:Boolean!,$wantThreads:Boolean!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){number @include(if:$isFirst),title @include(if:$isFirst),url @include(if:$isFirst),state @include(if:$isFirst),headRefName @include(if:$isFirst),baseRefName @include(if:$isFirst),reviews(last:50) @include(if:$isFirst){nodes{state,author{login},body,submittedAt}},comments(first:100,after:$commentAfter) @include(if:$wantComments){pageInfo{hasNextPage,endCursor}nodes{databaseId,author{login},body,createdAt}},reviewThreads(first:100,after:$threadAfter) @include(if:$wantThreads){pageInfo{hasNextPage,endCursor}nodes{id,isResolved,isOutdated,path,line,comments(first:100){pageInfo{hasNextPage,endCursor}nodes{databaseId,body,author{login},path,line,createdAt}}}}}}}'
 
 THREAD_COMMENTS_QUERY='query($threadId:ID!,$after:String){node(id:$threadId){... on PullRequestReviewThread{comments(first:100,after:$after){pageInfo{hasNextPage,endCursor}nodes{databaseId,body,author{login},path,line,createdAt}}}}}'
 
@@ -36,21 +41,24 @@ GENERAL='[]'
 THREADS='[]'
 THREAD_AFTER="null"
 COMMENT_AFTER="null"
-THREADS_HAS_NEXT="true"
+IS_FIRST="true"
 COMMENTS_HAS_NEXT="true"
-FIRST="true"
+THREADS_HAS_NEXT="true"
 
 # メインクエリ: reviewThreadsとgeneralComments(=.comments)を並行してページング
-while [ "$THREADS_HAS_NEXT" = "true" ] || [ "$COMMENTS_HAS_NEXT" = "true" ]; do
+while [ "$COMMENTS_HAS_NEXT" = "true" ] || [ "$THREADS_HAS_NEXT" = "true" ]; do
   RESPONSE=$(gh api graphql \
     -f query="$QUERY" \
     -F owner="$OWNER" -F repo="$REPONAME" -F pr="$PR_NUM" \
-    -F threadAfter="$THREAD_AFTER" -F commentAfter="$COMMENT_AFTER")
+    -F threadAfter="$THREAD_AFTER" -F commentAfter="$COMMENT_AFTER" \
+    -F isFirst="$IS_FIRST" \
+    -F wantComments="$COMMENTS_HAS_NEXT" \
+    -F wantThreads="$THREADS_HAS_NEXT")
 
-  if [ "$FIRST" = "true" ]; then
+  if [ "$IS_FIRST" = "true" ]; then
     META=$(printf '%s\n' "$RESPONSE" | jq '.data.repository.pullRequest | {number,title,url,state,headRefName,baseRefName}')
     REVIEWS=$(printf '%s\n' "$RESPONSE" | jq '.data.repository.pullRequest.reviews.nodes')
-    FIRST="false"
+    IS_FIRST="false"
   fi
 
   if [ "$COMMENTS_HAS_NEXT" = "true" ]; then

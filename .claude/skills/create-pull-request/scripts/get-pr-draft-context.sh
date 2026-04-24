@@ -18,8 +18,10 @@ if [ "$BRANCH" = "HEAD" ]; then
 fi
 
 # ベースブランチ検出（review-branchスキルのスクリプトを再利用）
+# -r で判定する: bash script.sh で明示実行するため実行ビットは不要。
+# -x だと実行権限がない環境で意図せずフォールバックしベース判定を誤る
 BASE_SCRIPT=".claude/skills/review-branch/scripts/detect-base-branch.sh"
-if [ -x "$BASE_SCRIPT" ]; then
+if [ -r "$BASE_SCRIPT" ]; then
   BASE=$(bash "$BASE_SCRIPT" --raw)
 else
   if git rev-parse --verify main >/dev/null 2>&1; then
